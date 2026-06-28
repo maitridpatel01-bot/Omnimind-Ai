@@ -8,6 +8,7 @@ export interface Message {
   content: string;
   timestamp: string;
   image?: string;
+  sources?: Array<{ title: string; uri: string }>;
 }
 
 export interface ChatSession {

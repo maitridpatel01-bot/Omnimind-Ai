@@ -71,6 +71,11 @@ export default function ResearchWorkspace({ onGainXp }: ResearchWorkspaceProps) 
   const [activeNetworkDetail, setActiveNetworkDetail] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // PDF AI Research specific states
+  const [researchPdf, setResearchPdf] = useState<{ name: string; base64: string; mimeType: string } | null>(null);
+  const [pdfAnalysisText, setPdfAnalysisText] = useState<string>("");
+  const [pdfAnalysisLoading, setPdfAnalysisLoading] = useState(false);
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -87,8 +92,25 @@ export default function ResearchWorkspace({ onGainXp }: ResearchWorkspaceProps) 
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const names = Array.from(e.dataTransfer.files).map((f: any) => f.name);
+      const files = Array.from(e.dataTransfer.files) as File[];
+      const names = files.map((f: File) => f.name);
       setUploadedPapers(prev => [...prev, ...names]);
+
+      // Read PDF for dedicated AI Research Summarizer
+      const pdfFile = files.find(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.txt') || f.name.toLowerCase().endsWith('.md'));
+      if (pdfFile) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          setResearchPdf({
+            name: pdfFile.name,
+            base64,
+            mimeType: pdfFile.type || "application/pdf"
+          });
+          setPdfAnalysisText(""); // clear old research
+        };
+        reader.readAsDataURL(pdfFile);
+      }
 
       names.forEach(name => {
         const newPaper: ComparisonPaper = {
@@ -115,8 +137,25 @@ export default function ResearchWorkspace({ onGainXp }: ResearchWorkspaceProps) 
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const names = Array.from(e.target.files).map((f: any) => f.name);
+      const files = Array.from(e.target.files) as File[];
+      const names = files.map((f: File) => f.name);
       setUploadedPapers(prev => [...prev, ...names]);
+
+      // Read PDF for dedicated AI Research Summarizer
+      const pdfFile = files.find(f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.txt') || f.name.toLowerCase().endsWith('.md'));
+      if (pdfFile) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          setResearchPdf({
+            name: pdfFile.name,
+            base64,
+            mimeType: pdfFile.type || "application/pdf"
+          });
+          setPdfAnalysisText(""); // clear old research
+        };
+        reader.readAsDataURL(pdfFile);
+      }
 
       names.forEach(name => {
         const newPaper: ComparisonPaper = {
@@ -138,6 +177,38 @@ export default function ResearchWorkspace({ onGainXp }: ResearchWorkspaceProps) 
       if (onGainXp) {
         onGainXp(40);
       }
+    }
+  };
+
+  const runPdfResearch = async () => {
+    if (!researchPdf) return;
+    setPdfAnalysisLoading(true);
+    setPdfAnalysisText("");
+
+    try {
+      const res = await fetch("/api/research-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfData: researchPdf.base64,
+          pdfName: researchPdf.name,
+          pdfMimeType: researchPdf.mimeType
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setPdfAnalysisText(data.analysis || "Could not analyze this paper.");
+        if (onGainXp) {
+          onGainXp(60);
+        }
+      } else {
+        throw new Error(data.error || "Failed to analyze document.");
+      }
+    } catch (err: any) {
+      setPdfAnalysisText(`An error occurred: ${err.message}. Please verify your network and GEMINI_API_KEY settings.`);
+    } finally {
+      setPdfAnalysisLoading(false);
     }
   };
 
@@ -245,6 +316,74 @@ export default function ResearchWorkspace({ onGainXp }: ResearchWorkspaceProps) 
           </div>
         )}
       </section>
+
+      {/* Real AI PDF Research Assistant */}
+      {researchPdf && (
+        <section className="glass-card rounded-[24px] p-6 border border-[#d0bcff]/20 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#d0bcff]/10 flex items-center justify-center border border-[#d0bcff]/20 text-[#d0bcff]">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white font-sans">AI PDF Researcher</h3>
+                <p className="text-xs text-gray-400">Deep academic analysis & insights from file content</p>
+              </div>
+            </div>
+            <button 
+              type="button"
+              onClick={() => {
+                setResearchPdf(null);
+                setPdfAnalysisText("");
+              }}
+              className="text-xs font-semibold text-red-400 hover:underline px-3 py-1 cursor-pointer"
+            >
+              Clear File
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col gap-3">
+            <div className="flex items-center justify-between text-xs font-mono text-gray-400">
+              <span className="truncate font-semibold text-[#d0bcff] flex items-center gap-2">
+                <span>📄</span> {researchPdf.name}
+              </span>
+              <span>Loaded & Ready</span>
+            </div>
+
+            <button 
+              onClick={runPdfResearch}
+              disabled={pdfAnalysisLoading}
+              className="w-full py-3 bg-gradient-to-r from-[#d0bcff] to-[#4cd7f6] text-slate-950 font-bold text-xs rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              {pdfAnalysisLoading ? "Analyzing literature content..." : "Extract Core Research Findings"}
+            </button>
+          </div>
+
+          {pdfAnalysisLoading && (
+            <div className="p-4 bg-white/[0.01] rounded-2xl border border-white/5 flex items-center justify-center text-xs text-gray-400 gap-3">
+              <div className="w-4 h-4 border-2 border-t-transparent border-[#d0bcff] rounded-full animate-spin"></div>
+              <span>Gemini AI is parsing and reviewing document layout & contents...</span>
+            </div>
+          )}
+
+          {pdfAnalysisText && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 rounded-2xl bg-[#d0bcff]/5 border border-[#d0bcff]/10 space-y-4 max-h-[450px] overflow-y-auto custom-scrollbar text-left"
+            >
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="text-xs uppercase font-mono tracking-wider font-bold text-[#4cd7f6]">Scientific Review Report</span>
+                <span className="text-[10px] font-mono text-gray-500">Grounded in actual file</span>
+              </div>
+              <div className="text-xs leading-relaxed text-gray-200 font-sans whitespace-pre-wrap space-y-3 prose prose-invert">
+                {pdfAnalysisText}
+              </div>
+            </motion.div>
+          )}
+        </section>
+      )}
 
       {/* Analysis Tools Grid */}
       <section className="space-y-4">

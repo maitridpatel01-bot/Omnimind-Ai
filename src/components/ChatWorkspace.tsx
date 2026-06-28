@@ -40,6 +40,65 @@ export default function ChatWorkspace({
   const [isRecording, setIsRecording] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
+  // MCP Connection States
+  const [mcpStates, setMcpStates] = useState<Record<string, { connected: boolean; url: string; token: string; tools: string[] }>>({
+    github: { connected: false, url: "http://localhost:3012", token: "", tools: ["list_repositories", "query_code", "get_issue", "create_pull_request"] },
+    slack: { connected: false, url: "http://localhost:3014", token: "", tools: ["list_channels", "get_messages", "post_message"] },
+    figma: { connected: false, url: "http://localhost:3016", token: "", tools: ["get_file_nodes", "get_styles", "export_component"] },
+    custom: { connected: false, url: "http://localhost:8080", token: "", tools: ["query_db", "fetch_logs", "trigger_webhook"] }
+  });
+  const [selectedMcpKey, setSelectedMcpKey] = useState<string | null>(null);
+  const [mcpInputUrl, setMcpInputUrl] = useState("");
+  const [mcpInputToken, setMcpInputToken] = useState("");
+  const [mcpLogs, setMcpLogs] = useState<string[]>([]);
+  const [isConfiguringMcp, setIsConfiguringMcp] = useState(false);
+
+  const openMcpConfig = (key: string) => {
+    setSelectedMcpKey(key);
+    const server = mcpStates[key];
+    setMcpInputUrl(server.url);
+    setMcpInputToken(server.token);
+    setMcpLogs([
+      `[MCP] Handshaking on ${key.toUpperCase()} node...`,
+      `[MCP] Gateway address: ${server.url || "not specified"}`,
+      server.connected ? `[MCP] Status: ACTIVE. Tunnel open.` : `[MCP] Status: OFFLINE. Ready for configuration.`
+    ]);
+    setIsConfiguringMcp(true);
+  };
+
+  const handleToggleMcpConnect = () => {
+    if (!selectedMcpKey) return;
+    const isConnecting = !mcpStates[selectedMcpKey].connected;
+    
+    if (isConnecting) {
+      setMcpLogs(prev => [
+        ...prev,
+        `[MCP] Dialing connection to server URL: ${mcpInputUrl}...`,
+        `[MCP] Resolving secure token authorization...`,
+        `[MCP] Succeeded. Handshake completed with protocol version 2024-11-05.`,
+        `[MCP] Registered tools with core compiler:`,
+        ...mcpStates[selectedMcpKey].tools.map(t => `  -> tool: ${t}`),
+        `[MCP] Server established successfully! Ping: 18ms.`
+      ]);
+    } else {
+      setMcpLogs(prev => [
+        ...prev,
+        `[MCP] Connection closed by client command.`,
+        `[MCP] Disconnected.`
+      ]);
+    }
+
+    setMcpStates(prev => ({
+      ...prev,
+      [selectedMcpKey]: {
+        ...prev[selectedMcpKey],
+        connected: isConnecting,
+        url: mcpInputUrl,
+        token: mcpInputToken
+      }
+    }));
+  };
+
   useEffect(() => {
     const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognitionClass) {
@@ -253,6 +312,7 @@ export default function ChatWorkspace({
         const modelMsg: Message = {
           role: 'model',
           content: data.content,
+          sources: data.sources,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
         onUpdateMessages([...updatedMessages, modelMsg]);
@@ -373,32 +433,78 @@ export default function ChatWorkspace({
 
       {/* MCP Connections */}
       <section className="space-y-4">
-        <h3 className="text-base font-bold text-white">MCP Connections</h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-base font-bold text-white">MCP Connections</h3>
+          <span className="text-[10px] font-mono font-bold text-gray-500 uppercase">Model Context Protocol</span>
+        </div>
         <div className="glass-card rounded-[24px] p-4 xs:p-5 grid grid-cols-2 xs:grid-cols-4 gap-3 xs:gap-4 border border-white/5 bg-white/[0.01]">
-          <div className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-              <span className="material-symbols-outlined text-white text-xl">data_object</span>
+          {/* GitHub */}
+          <button 
+            onClick={() => openMcpConfig("github")}
+            className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all ${
+              mcpStates.github.connected 
+                ? "bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.2)]" 
+                : "bg-white/5 border-white/10 text-white"
+            }`}>
+              <FolderGit className="w-5 h-5" />
             </div>
-            <span className="text-[9px] uppercase font-mono font-bold tracking-tight text-gray-500">GitHub</span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
-              <span className="material-symbols-outlined text-white text-xl">forum</span>
+            <span className={`text-[9px] uppercase font-mono font-bold tracking-tight ${mcpStates.github.connected ? "text-green-400" : "text-gray-500"}`}>
+              GitHub {mcpStates.github.connected ? "●" : ""}
+            </span>
+          </button>
+
+          {/* Slack */}
+          <button 
+            onClick={() => openMcpConfig("slack")}
+            className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all ${
+              mcpStates.slack.connected 
+                ? "bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.2)]" 
+                : "bg-white/5 border-white/10 text-white"
+            }`}>
+              <MessageSquare className="w-5 h-5" />
             </div>
-            <span className="text-[9px] uppercase font-mono font-bold tracking-tight text-gray-500">Slack</span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-[#a078ff]/10 flex items-center justify-center border border-[#a078ff]/20">
-              <span className="material-symbols-outlined text-[#a078ff] text-xl">auto_fix_high</span>
+            <span className={`text-[9px] uppercase font-mono font-bold tracking-tight ${mcpStates.slack.connected ? "text-green-400" : "text-gray-500"}`}>
+              Slack {mcpStates.slack.connected ? "●" : ""}
+            </span>
+          </button>
+
+          {/* Figma */}
+          <button 
+            onClick={() => openMcpConfig("figma")}
+            className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center border transition-all ${
+              mcpStates.figma.connected 
+                ? "bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.2)]" 
+                : "bg-[#a078ff]/10 border-[#a078ff]/20 text-[#a078ff]"
+            }`}>
+              <Palette className="w-5 h-5" />
             </div>
-            <span className="text-[9px] uppercase font-mono font-bold tracking-tight text-[#a078ff]">Figma</span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all">
-            <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 border-dashed">
-              <span className="material-symbols-outlined text-gray-500 text-xl">add</span>
+            <span className={`text-[9px] uppercase font-mono font-bold tracking-tight ${mcpStates.figma.connected ? "text-green-400" : "text-gray-500"}`}>
+              Figma {mcpStates.figma.connected ? "●" : ""}
+            </span>
+          </button>
+
+          {/* Connect (Custom) */}
+          <button 
+            onClick={() => openMcpConfig("custom")}
+            className="flex flex-col items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center border border-dashed transition-all ${
+              mcpStates.custom.connected 
+                ? "bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.2)]" 
+                : "bg-white/5 border-white/5 text-gray-500 hover:text-white hover:border-white/20"
+            }`}>
+              <Plus className="w-5 h-5" />
             </div>
-            <span className="text-[9px] uppercase font-mono font-bold tracking-tight text-gray-500">Connect</span>
-          </div>
+            <span className={`text-[9px] uppercase font-mono font-bold tracking-tight ${mcpStates.custom.connected ? "text-green-400" : "text-gray-500"}`}>
+              {mcpStates.custom.connected ? "Custom Node" : "Connect"}
+            </span>
+          </button>
         </div>
       </section>
 
@@ -425,6 +531,26 @@ export default function ChatWorkspace({
                     />
                   )}
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+                  
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-3 pt-2 border-t border-white/5 space-y-1.5 text-left">
+                      <p className="text-[10px] font-mono uppercase text-gray-500 tracking-wider font-bold">Google Grounding Sources:</p>
+                      <div className="flex flex-col gap-1">
+                        {msg.sources.map((src, sIdx) => (
+                          <a 
+                            key={sIdx}
+                            href={src.uri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-[11px] text-[#4cd7f6] hover:underline cursor-pointer"
+                          >
+                            <span className="text-[9px]">🔗</span> {src.title}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <span className={`block text-[9px] text-right mt-1.5 ${msg.role === 'user' ? 'text-slate-800' : 'text-gray-500'}`}>
                     {msg.timestamp}
                   </span>
@@ -588,6 +714,111 @@ export default function ChatWorkspace({
             >
               Cancel
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MCP Configuration Modal */}
+      <AnimatePresence>
+        {isConfiguringMcp && selectedMcpKey && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-[#0c0c10] border border-white/10 rounded-[32px] w-full max-w-md p-6 overflow-hidden shadow-2xl relative"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h4 className="text-base font-extrabold text-white uppercase tracking-tight">
+                    MCP Server: {selectedMcpKey.toUpperCase()}
+                  </h4>
+                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">Model Context Protocol Bridge</p>
+                </div>
+                <button 
+                  onClick={() => setIsConfiguringMcp(false)}
+                  className="p-1.5 hover:bg-white/5 rounded-xl text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-left">
+                {/* Host URL */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono font-bold text-gray-400 uppercase tracking-wider block">Server Endpoint URL</label>
+                  <input 
+                    type="text" 
+                    value={mcpInputUrl}
+                    onChange={(e) => setMcpInputUrl(e.target.value)}
+                    placeholder="http://localhost:3015"
+                    className="w-full bg-black/40 border border-white/10 focus:border-[#d0bcff]/50 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-0 font-mono"
+                  />
+                </div>
+
+                {/* Secure Auth Token */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono font-bold text-gray-400 uppercase tracking-wider block">Secure Auth token / key</label>
+                  <input 
+                    type="password" 
+                    value={mcpInputToken}
+                    onChange={(e) => setMcpInputToken(e.target.value)}
+                    placeholder="e.g. mcp_token_9x12"
+                    className="w-full bg-black/40 border border-white/10 focus:border-[#d0bcff]/50 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:ring-0 font-mono"
+                  />
+                </div>
+
+                {/* Available Tools Listing */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono font-bold text-gray-400 uppercase tracking-wider block">Discovered Remote Tools</label>
+                  <div className="bg-black/30 border border-white/5 p-2 rounded-xl flex flex-wrap gap-1.5">
+                    {mcpStates[selectedMcpKey].tools.map((t, idx) => (
+                      <span key={idx} className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[#4cd7f6]">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Server Logs Terminal */}
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-mono font-bold text-gray-400 uppercase tracking-wider block">Server Handshake Terminal</label>
+                  <div className="bg-black text-[10px] font-mono p-3 rounded-xl border border-white/5 h-24 overflow-y-auto space-y-1 scrollbar-thin">
+                    {mcpLogs.map((log, idx) => (
+                      <div key={idx} className={log.includes("ACTIVE") || log.includes("established") || log.includes("completed") ? "text-green-400" : log.includes("OFFLINE") ? "text-gray-500" : "text-gray-300"}>
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Connection Status & Control */}
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    onClick={handleToggleMcpConnect}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold active:scale-95 transition-all cursor-pointer ${
+                      mcpStates[selectedMcpKey].connected
+                        ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                        : "bg-green-500/10 text-green-400 border border-green-500/20"
+                    }`}
+                  >
+                    {mcpStates[selectedMcpKey].connected ? "Terminate Server" : "Connect & Sync"}
+                  </button>
+                  <button 
+                    onClick={() => setIsConfiguringMcp(false)}
+                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white hover:bg-white/10 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

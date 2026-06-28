@@ -67,6 +67,24 @@ export default function NoteWorkspace({ note, onUpdateNote, onGainXp }: NoteWork
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [error, setError] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [uploadedNotePdf, setUploadedNotePdf] = useState<{ name: string; base64: string; mimeType: string } | null>(null);
+
+  const handleNotePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setUploadedNotePdf({
+          name: file.name,
+          base64,
+          mimeType: file.type || "application/pdf"
+        });
+        triggerToast(`Notes source: '${file.name}' loaded! Ready for Quiz Wizard.`);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Mind map states
   const [activeMapId, setActiveMapId] = useState<string | null>(null);
@@ -355,7 +373,10 @@ export default function NoteWorkspace({ note, onUpdateNote, onGainXp }: NoteWork
         body: JSON.stringify({
           noteContent: note.content,
           noteTitle: note.title,
-          format: formatMode
+          format: formatMode,
+          pdfData: uploadedNotePdf?.base64,
+          pdfName: uploadedNotePdf?.name,
+          pdfMimeType: uploadedNotePdf?.mimeType
         })
       });
 
@@ -522,15 +543,49 @@ export default function NoteWorkspace({ note, onUpdateNote, onGainXp }: NoteWork
 
       {/* Quiz Wizard Setup Panel */}
       <section className="glass-card rounded-[24px] p-6 border border-white/5 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-950/40 flex items-center justify-center border border-cyan-800/20 text-[#4cd7f6]">
-            <Brain className="w-5 h-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950/40 flex items-center justify-center border border-cyan-800/20 text-[#4cd7f6]">
+              <Brain className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-white text-base">Quiz Wizard</h4>
+              <p className="text-xs text-gray-400">Generate practice from notes or an uploaded PDF</p>
+            </div>
           </div>
+
           <div>
-            <h4 className="font-bold text-white text-base">Quiz Wizard</h4>
-            <p className="text-xs text-gray-400">Generate practice from notes</p>
+            <label className="cursor-pointer bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-bold text-gray-300 hover:text-white px-3 py-1.5 rounded-lg active:scale-95 transition-all flex items-center gap-1.5 uppercase font-mono">
+              <span>Upload PDF/Notes</span>
+              <input 
+                type="file" 
+                accept=".pdf,.txt,.md" 
+                className="hidden" 
+                onChange={handleNotePdfUpload}
+              />
+            </label>
           </div>
         </div>
+
+        {uploadedNotePdf && (
+          <div className="p-3 bg-[#4cd7f6]/5 border border-[#4cd7f6]/20 rounded-xl flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-2 text-[#4cd7f6] truncate">
+              <span>📎</span>
+              <span className="truncate font-semibold">{uploadedNotePdf.name}</span>
+              <span className="text-[9px] bg-[#4cd7f6]/10 px-1.5 py-0.5 rounded font-bold uppercase">Ready</span>
+            </div>
+            <button 
+              type="button"
+              onClick={() => {
+                setUploadedNotePdf(null);
+                triggerToast("Cleared notes source.");
+              }}
+              className="text-gray-500 hover:text-red-400 font-bold ml-2 text-sm focus:outline-none cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <button 

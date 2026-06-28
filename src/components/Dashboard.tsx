@@ -4,7 +4,25 @@
  */
 
 import React, { useState } from "react";
-import { FileText, ChevronRight, AlertCircle, Sparkles, Award, Lock, Unlock, Check } from "lucide-react";
+import { 
+  FileText, 
+  ChevronRight, 
+  AlertCircle, 
+  Sparkles, 
+  Award, 
+  Lock, 
+  Unlock, 
+  Check,
+  MessageSquare,
+  UploadCloud,
+  FileSpreadsheet,
+  GraduationCap,
+  Brain,
+  DownloadCloud,
+  CheckCircle2,
+  Network,
+  Cpu
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, ChatSession, Note } from "../types";
 import DailyStudyGoals from "./DailyStudyGoals";
@@ -83,7 +101,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "Novice Scholar",
         description: "Welcome to OmniMind Workspace.",
         unlocked: hasNovice,
-        icon: "school",
+        icon: GraduationCap,
         themeColor: "from-purple-500/10 to-indigo-500/10 border-indigo-500/25 text-indigo-300",
         badgeGlow: "shadow-[0_0_15px_rgba(168,85,247,0.3)]"
       },
@@ -92,7 +110,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "Deep Synthesizer",
         description: "Draft an analytical note of over 150 characters.",
         unlocked: !!hasSynthesizer,
-        icon: "psychology",
+        icon: Brain,
         themeColor: "from-pink-500/10 to-rose-500/10 border-rose-500/25 text-pink-300",
         badgeGlow: "shadow-[0_0_15px_rgba(244,63,94,0.3)]"
       },
@@ -101,7 +119,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "Master Exporter",
         description: "Export note as a formatted Markdown or PDF.",
         unlocked: hasExported,
-        icon: "cloud_download",
+        icon: DownloadCloud,
         themeColor: "from-emerald-500/10 to-teal-500/10 border-teal-500/25 text-emerald-300",
         badgeGlow: "shadow-[0_0_15px_rgba(16,185,129,0.3)]"
       },
@@ -110,7 +128,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "Quest Completer",
         description: "Achieve 100% on a Daily Study Priority.",
         unlocked: hasQuestCompleter,
-        icon: "task_alt",
+        icon: CheckCircle2,
         themeColor: "from-amber-500/10 to-orange-500/10 border-orange-500/25 text-amber-300",
         badgeGlow: "shadow-[0_0_15px_rgba(245,158,11,0.3)]"
       },
@@ -119,7 +137,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "Map Pathfinder",
         description: "Interact with or expand a custom Knowledge Map.",
         unlocked: hasPathfinder,
-        icon: "hub",
+        icon: Network,
         themeColor: "from-cyan-500/10 to-sky-500/10 border-sky-500/25 text-cyan-300",
         badgeGlow: "shadow-[0_0_15px_rgba(6,182,212,0.3)]"
       },
@@ -128,7 +146,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         title: "AI Co-Pilot",
         description: "Initiate an expert consulting session in Chat.",
         unlocked: hasExplorer,
-        icon: "smart_toy",
+        icon: Cpu,
         themeColor: "from-blue-500/10 to-cyan-500/10 border-blue-500/25 text-blue-300",
         badgeGlow: "shadow-[0_0_15px_rgba(59,130,246,0.3)]"
       }
@@ -154,7 +172,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
         >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#d0bcff] to-[#4cd7f6] flex items-center justify-center text-slate-950 shadow-[0_0_20px_rgba(208,188,255,0.3)]">
-              <span className="material-symbols-outlined font-semibold text-2xl">chat_bubble</span>
+              <MessageSquare className="w-5.5 h-5.5 text-slate-950" />
             </div>
             <div>
               <span className="font-semibold block text-white text-base">Start New Chat</span>
@@ -168,7 +186,9 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
           onClick={() => onSelectTab("research")}
           className="glass-card p-5 rounded-[24px] flex flex-col items-start gap-4 active:scale-[0.98] transition-all text-left cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[#4cd7f6] text-3xl">upload_file</span>
+          <div className="w-10 h-10 rounded-xl bg-[#4cd7f6]/10 flex items-center justify-center border border-[#4cd7f6]/20">
+            <UploadCloud className="w-5 h-5 text-[#4cd7f6]" />
+          </div>
           <span className="text-sm font-semibold text-white">Upload File</span>
         </button>
 
@@ -176,7 +196,9 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
           onClick={() => setShowSummaryModal(true)}
           className="glass-card p-5 rounded-[24px] flex flex-col items-start gap-4 active:scale-[0.98] transition-all text-left cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[#f751a1] text-3xl">summarize</span>
+          <div className="w-10 h-10 rounded-xl bg-[#f751a1]/10 flex items-center justify-center border border-[#f751a1]/20">
+            <FileSpreadsheet className="w-5 h-5 text-[#f751a1]" />
+          </div>
           <span className="text-sm font-semibold text-white">Summarize Paper</span>
         </button>
       </section>
@@ -254,9 +276,7 @@ export default function Dashboard({ user, sessions, onSelectTab, onSelectChat, o
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
                   badge.unlocked ? "bg-white/10" : "bg-white/5"
                 }`}>
-                  <span className="material-symbols-outlined text-lg">
-                    {badge.icon}
-                  </span>
+                  <badge.icon className={`w-4.5 h-4.5 ${badge.unlocked ? "text-white" : "text-gray-400"}`} />
                 </div>
                 <div>
                   {badge.unlocked ? (
