@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import LandingPage from "./components/LandingPage";
 import AuthPage from "./components/AuthPage";
 import Dashboard from "./components/Dashboard";
@@ -16,6 +16,8 @@ import Header from "./components/Header";
 import BottomNav from "./components/BottomNav";
 import SettingsModal from "./components/SettingsModal";
 import { UserProfile, ChatSession, Note, Message, Notification, SupportTicket } from "./types";
+import { auth, db } from "./lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("landing");
@@ -108,17 +110,58 @@ export default function App() {
     links: []
   });
 
-  const handleLoginSuccess = (name: string, email: string) => {
-    setUser({
-      name,
-      email,
-      level: 1,
-      xp: 250,
-      xpMax: 1000,
-      streak: 1
-    });
+  const handleLoginSuccess = (profile: UserProfile) => {
+    setUser(profile);
     setActiveTab("dashboard");
   };
+
+  // Sync user profile progress to Firestore in the background
+  useEffect(() => {
+    if (!user || !auth.currentUser) return;
+    const syncProfile = async () => {
+      try {
+        await setDoc(doc(db, "users", auth.currentUser!.uid), user, { merge: true });
+      } catch (e) {
+        console.error("Error syncing profile progress to Firestore:", e);
+      }
+    };
+    // Debounce state writes slightly to prevent excessive API writes
+    const timeout = setTimeout(syncProfile, 500);
+    return () => clearTimeout(timeout);
+  }, [user]);
+
+  // Handle Firebase Auth Session Restoration on page refresh
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
+      if (fbUser) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", fbUser.uid));
+          if (userDoc.exists()) {
+            setUser(userDoc.data() as UserProfile);
+            setActiveTab("dashboard");
+          } else {
+            // Fallback profile if user exists in auth but no doc in Firestore
+            const fallbackProfile: UserProfile = {
+              name: fbUser.displayName || fbUser.email?.split("@")[0] || "Scholar",
+              email: fbUser.email || "",
+              level: 1,
+              xp: 250,
+              xpMax: 1000,
+              streak: 1
+            };
+            await setDoc(doc(db, "users", fbUser.uid), fallbackProfile);
+            setUser(fallbackProfile);
+            setActiveTab("dashboard");
+          }
+        } catch (e) {
+          console.error("Error restoring user session:", e);
+        }
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const gainXp = (amount: number) => {
     if (!user) return;
@@ -284,6 +327,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    auth.signOut().catch(err => console.error("Error signing out:", err));
     setUser(null);
     setActiveTab("landing");
   };

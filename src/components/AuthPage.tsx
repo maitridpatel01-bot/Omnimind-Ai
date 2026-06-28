@@ -4,23 +4,27 @@
  */
 
 import React, { useState } from "react";
-import { Chrome, Github, Lock, Mail, Terminal } from "lucide-react";
+import { Chrome, Github, Lock, Mail, Terminal, LogIn, UserPlus } from "lucide-react";
 import { motion } from "motion/react";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, GithubAuthProvider } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
+import { UserProfile } from "../types";
 
 interface AuthPageProps {
-  onLoginSuccess: (email: string, name: string) => void;
+  onLoginSuccess: (profile: UserProfile) => void;
   onBack: () => void;
 }
 
 export default function AuthPage({ onLoginSuccess, onBack }: AuthPageProps) {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState("alex.rivera@omnimind.ai");
-  const [name, setName] = useState("Alex Rivera");
-  const [password, setPassword] = useState("••••••••");
+  const [isSignUp, setIsSignUp] = useState(true); // Default to sign up first
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -28,19 +32,156 @@ export default function AuthPage({ onLoginSuccess, onBack }: AuthPageProps) {
       setError("Please fill in your email address.");
       return;
     }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+    if (isSignUp && !name) {
+      setError("Please fill in your full name.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // Extract name from email if signing up, or use the entered name
-      let displayName = name;
-      if (!isSignUp && email.includes("@")) {
-        const part = email.split("@")[0];
-        displayName = part.split(".").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    try {
+      if (isSignUp) {
+        // Firebase Auth Create User
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const fbUser = userCredential.user;
+
+        // Update profile display name
+        await updateProfile(fbUser, { displayName: name });
+
+        // Initialize Firestore User Profile
+        const initialProfile: UserProfile = {
+          name: name,
+          email: email,
+          level: 1,
+          xp: 250,
+          xpMax: 1000,
+          streak: 1
+        };
+
+        await setDoc(doc(db, "users", fbUser.uid), initialProfile);
+        onLoginSuccess(initialProfile);
+      } else {
+        // Firebase Auth Sign In
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const fbUser = userCredential.user;
+
+        // Fetch User Profile from Firestore
+        const userDocRef = doc(db, "users", fbUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+
+        let profile: UserProfile;
+        if (userDocSnap.exists()) {
+          profile = userDocSnap.data() as UserProfile;
+        } else {
+          // Fallback if no Firestore profile exists
+          profile = {
+            name: fbUser.displayName || email.split("@")[0],
+            email: email,
+            level: 1,
+            xp: 250,
+            xpMax: 1000,
+            streak: 1
+          };
+          await setDoc(userDocRef, profile);
+        }
+
+        onLoginSuccess(profile);
       }
-      onLoginSuccess(email, displayName || "Alex");
-    }, 800);
+    } catch (err: any) {
+      console.error("Authentication Error:", err);
+      let friendlyMessage = "Authentication failed. Please verify your details.";
+      if (err.code === "auth/email-already-in-use") {
+        friendlyMessage = "This email is already in use. Try signing in instead.";
+      } else if (err.code === "auth/invalid-credential") {
+        friendlyMessage = "Invalid email or password. Please try again.";
+      } else if (err.code === "auth/weak-password") {
+        friendlyMessage = "Password is too weak. Must be at least 6 characters.";
+      } else if (err.message) {
+        friendlyMessage = err.message;
+      }
+      setError(friendlyMessage);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const fbUser = userCredential.user;
+
+      const userDocRef = doc(db, "users", fbUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      let profile: UserProfile;
+      if (userDocSnap.exists()) {
+        profile = userDocSnap.data() as UserProfile;
+      } else {
+        profile = {
+          name: fbUser.displayName || "Google Scholar",
+          email: fbUser.email || "",
+          level: 1,
+          xp: 250,
+          xpMax: 1000,
+          streak: 1
+        };
+        await setDoc(userDocRef, profile);
+      }
+
+      onLoginSuccess(profile);
+    } catch (err: any) {
+      console.error("Google Authentication Error:", err);
+      setError(err.message || "Google Sign-In failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGithubSignIn = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const provider = new GithubAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const fbUser = userCredential.user;
+
+      const userDocRef = doc(db, "users", fbUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      let profile: UserProfile;
+      if (userDocSnap.exists()) {
+        profile = userDocSnap.data() as UserProfile;
+      } else {
+        profile = {
+          name: fbUser.displayName || "GitHub Developer",
+          email: fbUser.email || "",
+          level: 1,
+          xp: 250,
+          xpMax: 1000,
+          streak: 1
+        };
+        await setDoc(userDocRef, profile);
+      }
+
+      onLoginSuccess(profile);
+    } catch (err: any) {
+      console.error("GitHub Authentication Error:", err);
+      setError(err.message || "GitHub Sign-In failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-[#0a0a0f] text-gray-200 relative overflow-hidden font-sans">
@@ -144,15 +285,19 @@ export default function AuthPage({ onLoginSuccess, onBack }: AuthPageProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <button 
-              onClick={() => onLoginSuccess("alex.rivera@omnimind.ai", "Alex Rivera")}
-              className="flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all"
+              id="btn-google-signin"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
             >
               <Chrome className="w-4 h-4 text-red-400" />
               Google
             </button>
             <button 
-              onClick={() => onLoginSuccess("alex.rivera@omnimind.ai", "Alex Rivera")}
-              className="flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all"
+              id="btn-github-signin"
+              onClick={handleGithubSignIn}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
             >
               <Github className="w-4 h-4 text-white" />
               GitHub
