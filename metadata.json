@@ -1,0 +1,6 @@
+{
+  "name": "OmniMind AI Study Workspace",
+  "description": "An interactive glassmorphism study & startup workstation featuring specialized AI experts, code compilers, paper summarizers, and career analyzers.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
